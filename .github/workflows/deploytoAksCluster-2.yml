@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: acrjenkins.azurecr.io
+        username: ${{ secrets.acr_acrjenkins_username }}
+        password: ${{ secrets.acr_acrjenkins_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/azure-vote" -f  "azure-vote/Dockerfile" -t acrjenkins.azurecr.io/bgbrt:${{ github.sha }} --label dockerfile-path=azure-vote/Dockerfile
+        docker push acrjenkins.azurecr.io/bgbrt:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_bgbrt_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep bgbrt918e | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace bgbrt918e`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: bgbrt918e
+        container-registry-url: acrjenkins.azurecr.io
+        container-registry-username: ${{ secrets.acr_acrjenkins_username }}
+        container-registry-password: ${{ secrets.acr_acrjenkins_password }}
+        secret-name: bgbrtdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: bgbrt918e
+        manifests: |
+          manifests/deployment-2.yml
+          manifests/service-2.yml
+        images: |
+          acrjenkins.azurecr.io/bgbrt:${{ github.sha }}
+        imagepullsecrets: |
+          bgbrtdockerauth
