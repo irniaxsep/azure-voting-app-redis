@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "bgbrt-d257"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "bgbrt-d257"
+  template:
+    metadata:
+      labels:
+        app: "bgbrt-d257"
+    spec:
+      containers:
+        - name: "bgbrt-d257"
+          image: "acrjenkins.azurecr.io/bgbrt"
+          ports:
+          - containerPort: 80
